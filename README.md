@@ -5,6 +5,7 @@ La versión DIMQ considera la integración de 6 sensores distintos que miden 3 v
 - pH
 - Oxigeno disuelto (OD)
 - NO3
+- Temperatura
 
 La siguiente tabla resume los sensores considerados para esta estación y su principales características.
 

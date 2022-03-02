@@ -20,8 +20,8 @@ La documentación de este proyecto se encuentra en los siguientes links
 ## Firmware
 El firmware fue desarrollado en platformio. Para compilar nuevos cambios puede ejecutar directamente en consola los comandos 
 - Compilar el código
-'pio run'
+`pio run`
 - Subir y compilar al puerto autodetectado
-'pio run --target upload'
+`pio run --target upload`
 
 ### Código

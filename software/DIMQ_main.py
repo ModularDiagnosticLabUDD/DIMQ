@@ -27,13 +27,13 @@ debug = True
 #define SENSOR_NO3     7 // 
 COM_PORT = "COM16"
 DATA_PATH       = "data/"
-TYPE_SENSORS    = [ {"ID":"1","type":"SENSOR_PH_1","val":"pH","unit":"pH"},    # sensor ph gravity
-                    {"ID":"2","type":"SENSOR_PH_2","val":"pH","unit":"pH"},    # sensor ph gravity  lab
-                    {"ID":"3","type":"SENSOR_PH_3","val":"pH","unit":"pH"},    # sensor ph aliexpres
-                    {"ID":"4","type":"SENSOR_PH_4","val":"pH","unit":"pH"},    # sensor ph gravity
-                    {"ID":"5","type":"SENSOR_DO_1","val":"DO","unit":"ppm"},   # sensor DO atlas scientific
+TYPE_SENSORS    = [ {"ID":"0","type":"SENSOR_PH_1","val":"pH","unit":"pH"},    # sensor ph gravity
+                    {"ID":"1","type":"SENSOR_PH_2","val":"pH","unit":"pH"},    # sensor ph gravity  lab
+                    {"ID":"2","type":"SENSOR_PH_3","val":"pH","unit":"pH"},    # sensor ph aliexpres
+                    {"ID":"3","type":"SENSOR_PH_4","val":"pH","unit":"pH"},    # sensor ph gravity
+                    {"ID":"4","type":"SENSOR_DO_1","val":"DO","unit":"ppm"},   # sensor DO atlas scientific
                     {"ID":"6","type":"SENSOR_DO_2","val":"DO","unit":"ppm"},   # sensor DO gravity
-                    {"ID":"7","type":"SENSOR_N03" ,"val":"NO3","unit":"ppm"} ]  # sensor NO3 aliexpress
+                    {"ID":"5","type":"SENSOR_N03" ,"val":"NO3","unit":"ppm"} ]  # sensor NO3 aliexpress
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -41,16 +41,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
+        self.setWindowTitle('DIMQ')
+        self.setWindowIcon(QtGui.QIcon('dimq/img/logo.JPG'))
+        #rest = self.setWindowIcon(QtGui.QIcon('dimq/img/logo.JPG'))
+        #print(rest)
+
         self.com_port  = COM_PORT
         self.dimq   = None #eq("b1",self.com)
-        self.m      = 4.27 #pH/V
+        self.m      = 0.028 #pH/mV
         self.n      = 0.6 #pH
         self.mv     = 1500 #pH
         self.ph     = 7.0
 
-        
-
         self.sensors_array = []
+
 
 
         for k in TYPE_SENSORS:
@@ -71,15 +75,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.run_state = False
         self.connected = False
+        self.ready          = False
+        self.auto_correct   = False
+        self.temp_adj       = False 
         self.elapsed_time   = 0 
         self.sample_time    = 1# in seconds
 
 
-
         #TIME AND DATE     
         self.date_now = QtCore.QDate.currentDate()
-        
-
         
         #MGMT UPDATE DATA
         self.run_timer = QtCore.QTimer()
@@ -100,11 +104,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ui.lineEdit_5.setReadOnly(True) 
         self.ui.lineEdit_8.setReadOnly(True) 
         self.ui.lineEdit_9.setReadOnly(True) 
-        self.ui.lineEdit.setReadOnly(True) 
-        self.ui.lineEdit_4.setReadOnly(True) 
+        
 
         self.ui.pushButton_8.setDisabled(True)
         self.ui.pushButton_6.setDisabled(True)
+        self.ui.pushButton_9.setDisabled(True)
+        self.ui.pushButton_2.setDisabled(True)
+        self.ui.pushButton_3.setDisabled(True)
+        self.ui.pushButton_4.setDisabled(True)
+        self.ui.pushButton_7.setDisabled(True)
+
+        self.ui.lineEdit_2.setDisabled(True)
+        self.ui.lineEdit_3.setDisabled(True)
+        self.ui.comboBox_2.setDisabled(True)
+
 
         self.ui.radioButton.setChecked(True)
 
@@ -132,6 +145,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ui.pushButton_4.clicked.connect(self.setSampleTime)
         #set automatic mode
         self.ui.radioButton.toggled.connect(self.setMode)
+        #set manual adjust values
+        self.ui.pushButton_5.clicked.connect(self.setParameters)
+        #set auto adjust
+        self.ui.pushButton_6.clicked.connect(self.autoAdjust)
+        #set temperature compensation
+        self.ui.pushButton_9.clicked.connect(self.tempCompensation)
 
 
     def selectPort(self):
@@ -148,14 +167,25 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.connected = False
             except Exception as e:
                 print("Not COM available")
+            self.ui.comboBox_2.setDisabled(True)
+            self.ui.pushButton_2.setDisabled(True)
+            self.ui.lineEdit_3.setDisabled(True)
+            self.ui.pushButton_4.setDisabled(True)
+            self.ui.lineEdit_2.setDisabled(True)
+            self.ui.pushButton_3.setDisabled(True)
+            self.ui.pushButton_7.setDisabled(True)
+            self.ready = False
          
         else:
             self.ui.label_2.setText("Connected")
             self.ui.pushButton.setText("DISCONNECT")
+            self.com_port = self.ui.comboBox.currentText()
             self.dimq =  dimq("b1",self.com_port)
             self.dimq.connectSerialPort()
             self.connected = True
             self.run_timer.start()
+            self.ui.comboBox_2.setDisabled(False)
+            self.ui.pushButton_2.setDisabled(False)
             if debug:
                 print(f" connected to port : {self.com_port}")
 
@@ -164,22 +194,33 @@ class MainWindow(QtWidgets.QMainWindow):
         if debug:
             print (self.data_path)
         self.ui.lineEdit_2.setText(self.data_path)
+        self.ui.lineEdit_3.setDisabled(False)
+        self.ui.pushButton_4.setDisabled(False)
+
 
     def setMode(self):
         self.mode = self.ui.radioButton.isChecked()
-        if self.mode:
+        if self.mode: #manual mode
+            self.ui.pushButton_6.setText('Off')
+            self.ui.pushButton_9.setText('Off')
+            self.auto_correct   = False
+            self.temp_adj       = False
             self.ui.pushButton_6.setDisabled(True)
-            self.ui.label_10.setDisabled(False)
-            self.ui.label_11.setDisabled(False)
-            self.ui.lineEdit_8.setDisabled(False)
-            self.ui.lineEdit_9.setDisabled(False)
+            self.ui.pushButton_9.setDisabled(True)
+            self.ui.label_7.setDisabled(False)
+            self.ui.label_8.setDisabled(False)
+            self.ui.lineEdit_7.setDisabled(False)
+            self.ui.lineEdit_6.setDisabled(False)
+            self.ui.pushButton_5.setDisabled(False)
 
         else:
             self.ui.pushButton_6.setDisabled(False)
-            self.ui.label_10.setDisabled(True)
-            self.ui.label_11.setDisabled(True)
-            self.ui.lineEdit_8.setDisabled(True)
-            self.ui.lineEdit_9.setDisabled(True)
+            self.ui.pushButton_9.setDisabled(False)
+            self.ui.label_7.setDisabled(True)
+            self.ui.label_8.setDisabled(True)
+            self.ui.lineEdit_7.setDisabled(True)
+            self.ui.lineEdit_6.setDisabled(True)
+            self.ui.pushButton_5.setDisabled(True)
 
     def calibrate(self):
         pass
@@ -193,28 +234,53 @@ class MainWindow(QtWidgets.QMainWindow):
     def setSensorType(self):
         self.sensor_type = self.ui.comboBox_2.currentText()
         for k in TYPE_SENSORS:
-            if k["type"] == self.sensor_type:
-                self.ui.lineEdit.setText(k["ID"])                
+            if k["type"] == self.sensor_type:          
                 self.ui.label_18.setText(k["val"])
                 self.ui.label_6.setText(k["unit"])
-                self.ui.label_10.setText("Slope ["+k["unit"]+"/V]")
-                self.ui.label_10.setText("Slope ["+k["unit"]+"/V]")
-                self.ui.label_7.setText("m ["+k["unit"]+"/V]")
+                self.ui.label_10.setText("Slope ["+k["unit"]+"/mV]")
+                self.ui.label_10.setText("Slope ["+k["unit"]+"/mV]")
+                self.ui.label_7.setText("m ["+k["unit"]+"/mV]")
                 self.ui.label_8.setText("n ["+k["unit"]+"]")
                 print(f"sensor selecciondado { self.sensor_type}")
+        self.ui.lineEdit_2.setDisabled(False)
+        self.ui.pushButton_3.setDisabled(False)
+
 
 
     def setSampleTime(self):
         self.sample_time = float(self.ui.lineEdit_3.text())
+
         if self.sample_time < 0.1:
             self.sample_time = 0.1
+            self.ui.label_21.setText(str(self.sample_time))
         if self.connected:
             self.run_timer.stop()
-            self.run_timer.setInterval(1000*self.sample_time)
+            self.run_timer.setInterval(int(1000*self.sample_time))
             self.run_timer.start()
+        self.ui.pushButton_7.setDisabled(False)
+        self.ready = True
 
     def setParameters(self):
-        pass
+        self.m = float(self.ui.lineEdit_6.text())
+        self.n = float(self.ui.lineEdit_7.text())
+        self.ui.lineEdit_8.setText(str(self.m))
+        self.ui.lineEdit_9.setText(str(self.n))
+
+    def autoAdjust(self):
+        if self.auto_correct:
+            self.ui.pushButton_6.setText('Off')
+            self.auto_correct = False
+        else:
+            self.ui.pushButton_6.setText('On')
+            self.auto_correct = True
+
+    def tempCompensation(self):
+        if self.temp_adj:
+            self.ui.pushButton_9.setText('Off')
+            self.temp_adj = False
+        else:
+            self.ui.pushButton_9.setText('On')
+            self.temp_adj = True
 
     def updateTime(self):
         current_time = QtCore.QTime.currentTime()
@@ -225,8 +291,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.ui.lineEdit_12.setText(str(datetime.timedelta(seconds = self.elapsed_time)))
 
     def updateData(self):
-        if self.connected:
-            print("updating data")
+        if self.connected and self.ready:      
             self.ui.lineEdit_13.setText(format(self.dimq.getTemp()    ,'.2f'))
             self.ui.lineEdit_5.setText( format(self.dimq.getmV()      ,'.2f'))
             self.ui.lineEdit_10.setText(format(self.dimq.getValue()   ,'.2f'))
@@ -242,13 +307,7 @@ if __name__ == "__main__":
     app = QtWidgets.QApplication([])
     main = MainWindow()
     main.show()
-    #
-    #def exit_program():
-    #    print("exitinig from program")
-    #    main.StopAll()
-    #    main.closeAll()
-    #    app.exec_()
-    #sys.exit(exit_program())
+   
     ret = app.exec_()
     main.Close()
     print("stoped")

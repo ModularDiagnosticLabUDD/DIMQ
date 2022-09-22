@@ -24,7 +24,7 @@ class dimq:
 
         self.actual_value = 0.0
         self.val_mv = 0.0
-        self.temp = 0.0
+        self.temp   = 0.0
 
     def printStatus(self):
         print(f'{self.id},{self.port_name},{self.connected}')
